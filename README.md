@@ -48,3 +48,9 @@ Other storage options considered:
 ```bash
 git clone https://github.com/yourusername/expense-tracker.git
 cd expense-tracker
+
+2. Install dependencies:
+   npm install
+
+3. Start the frontend:
+   npm start
