@@ -13,19 +13,23 @@ export default function App() {
   });
   const [filterCategory, setFilterCategory] = useState("");
   const [sort, setSort] = useState("date_desc");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // form submission loading
+  const [fetching, setFetching] = useState(false); // API fetching loading
   const [error, setError] = useState("");
 
   async function loadExpenses() {
     try {
       setError("");
+      setFetching(true);
       const data = await getExpenses({
         category: filterCategory,
         sort,
       });
       setExpenses(data);
     } catch (err) {
-      setError(err.message);
+      setError("Failed to fetch expenses: " + err.message);
+    } finally {
+      setFetching(false);
     }
   }
 
@@ -38,34 +42,52 @@ export default function App() {
     0
   );
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+ async function handleSubmit(e) {
+  e.preventDefault();
+  if (loading) return; // prevent multiple clicks
 
-    try {
-      await createExpense({
-        ...form,
-        requestId: uuidv4(),
-      });
-      setForm({ amount: "", category: "", description: "", date: "" });
-      loadExpenses();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  // Check for duplicate
+  const isDuplicate = expenses.some(
+    (exp) =>
+      exp.amount_cents === Math.round(parseFloat(form.amount) * 100) &&
+      exp.category.trim().toLowerCase() === form.category.trim().toLowerCase() &&
+      (exp.description || "").trim().toLowerCase() === (form.description || "").trim().toLowerCase() &&
+      exp.date === form.date
+  );
+
+  if (isDuplicate) {
+    setError("Duplicate expense detected! Please check your entry.");
+    return; // stop submission
   }
+
+  setLoading(true);
+  setError("");
+
+  try {
+    await createExpense({
+      ...form,
+      requestId: uuidv4(),
+    });
+    setForm({ amount: "", category: "", description: "", date: "" });
+    await loadExpenses(); // reload after successful creation
+  } catch (err) {
+    setError("Failed to save expense: " + err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
 
   const uniqueCategories = [
     ...new Set(expenses.map((e) => e.category)),
   ];
 
   return (
-    <div style={{ maxWidth: 700, margin: "40px auto", fontFamily: "Arial" }}>
+    <div className="app-container">
       <h2>Expense Tracker</h2>
 
-      <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
+      {/* Form */}
+      <form onSubmit={handleSubmit}>
         <input
           placeholder="Amount"
           type="number"
@@ -76,7 +98,6 @@ export default function App() {
           }
           required
         />
-
         <input
           placeholder="Category"
           value={form.category}
@@ -85,7 +106,6 @@ export default function App() {
           }
           required
         />
-
         <input
           placeholder="Description"
           value={form.description}
@@ -93,7 +113,6 @@ export default function App() {
             setForm({ ...form, description: e.target.value })
           }
         />
-
         <input
           type="date"
           value={form.date}
@@ -102,24 +121,16 @@ export default function App() {
           }
           required
         />
-
         <button disabled={loading}>
           {loading ? "Saving..." : "Add Expense"}
         </button>
       </form>
 
-      {error && (
-        <p style={{ color: "red", marginBottom: 10 }}>
-          {error}
-        </p>
-      )}
+      {/* Error */}
+      {error && <p className="error-message">{error}</p>}
 
-      <div style={{ marginBottom: 10 }}>
-        <strong>Total:</strong> ₹
-        {(totalCents / 100).toFixed(2)}
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
+      {/* Filters */}
+      <div className="filters">
         <select
           value={filterCategory}
           onChange={(e) =>
@@ -144,15 +155,26 @@ export default function App() {
         </select>
       </div>
 
-      <ul>
-        {expenses.map((e) => (
-          <li key={e.id}>
-            {e.date} — {e.category} — ₹
-            {(e.amount_cents / 100).toFixed(2)} —{" "}
-            {e.description}
-          </li>
-        ))}
-      </ul>
+      {/* Total */}
+      <div className="total">
+        <strong>Total:</strong> ₹{(totalCents / 100).toFixed(2)}
+      </div>
+
+      {/* Loading */}
+      {fetching ? (
+        <p className="loading">Loading expenses...</p>
+      ) : (
+        <ul>
+          {expenses.map((e) => (
+            <li key={e.id}>
+              <span>{e.date}</span>
+              <span>{e.category}</span>
+              <span>₹{(e.amount_cents / 100).toFixed(2)}</span>
+              <span>{e.description}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
